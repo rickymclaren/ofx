@@ -17,7 +17,7 @@
  * with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <config.h>
+//#include <config.h>
 #include <gtk/gtk.h>
 
 
@@ -31,6 +31,15 @@
 #include <glib.h>
 #include <glib/gstdio.h>
 #include <glib/gprintf.h>
+
+enum
+{
+  COL_DATE = 0,
+  COL_AMOUNT,
+  COL_BALANCE,
+  COL_MEMO,
+  NUM_COLS
+} ;
 
 typedef struct tx_type {
 	char *date;
@@ -116,63 +125,11 @@ process_xml(xmlNode * a_node)
     }
 }
 
-/* For testing propose use the local (not installed) ui file */
-/* #define UI_FILE PACKAGE_DATA_DIR"/gtk_money/ui/gtk_money.ui" */
-#define UI_FILE "src/gtk_money.ui"
-
-/* Signal handlers */
-/* Note: These may not be declared static because signal autoconnection
- * only works with non-static methods
- */
-
 /* Called when the window is closed */
-void
+static void
 destroy (GtkWidget *widget, gpointer data)
 {
 	gtk_main_quit ();
-}
-
-static GtkWindow*
-create_window (void)
-{
-	GtkWindow *window;
-	GtkBuilder *builder;
-	GError* error = NULL;
-	GtkTreeIter iter;
-	GtkListStore *store;
-
-	/* Load UI from file */
-	builder = gtk_builder_new ();
-	if (!gtk_builder_add_from_file (builder, UI_FILE, &error))
-	{
-		g_warning ("Couldn't load builder file: %s", error->message);
-		g_error_free (error);
-	}
-
-	/* Auto-connect signal handlers */
-	gtk_builder_connect_signals (builder, NULL);
-
-	/* Get the window object from the ui file */
-	window = GTK_WINDOW (gtk_builder_get_object (builder, "window"));
-
-	store = GTK_LIST_STORE (gtk_builder_get_object (builder, "liststore1"));
-
-	GSList* item = tx_list;
-	while (item) {
-		tx = item->data;
-		gtk_list_store_append(store, &iter);
-		gtk_list_store_set(store, &iter,
-			               0, tx->date,
-	    		           1, tx->amount,
-		                   2, g_strjoin(" - ", tx->name, tx->memo, NULL),
-		                   3, tx->balance,
-	        		       -1);
-		item = g_slist_next(item);
-	}
-
-	g_object_unref (builder);
-
-	return window;
 }
 
 void
@@ -188,17 +145,104 @@ running_balance() {
 
 }
 
+static GtkTreeModel *
+create_and_fill_model (void)
+{
+  GtkListStore  *store;
+  GtkTreeIter    iter;
+  
+  store = gtk_list_store_new (NUM_COLS, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING);
+
+	GSList* item = tx_list;
+	while (item) {
+		tx = item->data;
+		gtk_list_store_append(store, &iter);
+		gtk_list_store_set(store, &iter,
+			               COL_DATE, tx->date,
+	    		           COL_AMOUNT, tx->amount,
+		                   COL_MEMO, g_strjoin(" - ", tx->name, tx->memo, NULL),
+		                   COL_BALANCE, tx->balance,
+	        		       -1);
+		item = g_slist_next(item);
+	}
+
+  return GTK_TREE_MODEL (store);
+}
+
+static GtkWindow*
+create_window (void)
+{
+	GtkWindow *window;
+	GError* error = NULL;
+	GtkTreeIter iter;
+	GtkListStore *store;
+
+	// Build from bottom up
+
+	GtkWidget *view = gtk_tree_view_new();
+  	GtkCellRenderer *renderer = gtk_cell_renderer_text_new ();
+  	gtk_tree_view_insert_column_with_attributes (GTK_TREE_VIEW (view),
+                                                 -1,      
+                                                "Date",  
+                                                renderer,
+                                                "text", COL_DATE,
+                                                NULL);    
+ 	renderer = gtk_cell_renderer_text_new ();
+  	gtk_tree_view_insert_column_with_attributes (GTK_TREE_VIEW (view),
+                                               -1,      
+                                               "Amount",  
+                                               renderer,
+                                               "text", COL_AMOUNT,
+                                               NULL);	
+ 	renderer = gtk_cell_renderer_text_new ();
+  	gtk_tree_view_insert_column_with_attributes (GTK_TREE_VIEW (view),
+                                               -1,      
+                                               "Balance",  
+                                               renderer,
+                                               "text", COL_BALANCE,
+                                               NULL);	
+ 	renderer = gtk_cell_renderer_text_new ();
+  	gtk_tree_view_insert_column_with_attributes (GTK_TREE_VIEW (view),
+                                               -1,      
+                                               "Memo",  
+                                               renderer,
+                                               "text", COL_MEMO,
+                                               NULL);	
+
+	GtkTreeModel *model = create_and_fill_model ();
+
+  	gtk_tree_view_set_model (GTK_TREE_VIEW (view), model);
+
+  	/* The tree view has acquired its own reference to the
+   	 *  model, so we can drop ours. That way the model will
+   	 *  be freed automatically when the tree view is destroyed */
+
+  	g_object_unref (model);	
+	gtk_widget_show (view);
+	
+	GtkWidget *button2 = gtk_button_new_with_label ("Goodbye World");
+    gtk_widget_show (button2);
+
+	GtkWidget* notebook = gtk_notebook_new();
+	gtk_notebook_append_page (GTK_NOTEBOOK (notebook), view, gtk_label_new ("Ledger"));
+	gtk_notebook_append_page (GTK_NOTEBOOK (notebook), button2, gtk_label_new ("Graph"));
+    gtk_widget_show (notebook);
+
+	window = gtk_window_new (GTK_WINDOW_TOPLEVEL);
+	g_signal_connect (window, "delete-event",
+	          G_CALLBACK (destroy), NULL);
+    gtk_container_set_border_width (GTK_CONTAINER (window), 10);
+
+    gtk_container_add (GTK_CONTAINER (window), notebook);	
+
+	return window;
+}
+
 int
 main (int argc, char *argv[])
 {
  	GtkWindow *window;
 
-
-#ifdef ENABLE_NLS
-	bindtextdomain (GETTEXT_PACKAGE, PACKAGE_LOCALE_DIR);
-	bind_textdomain_codeset (GETTEXT_PACKAGE, "UTF-8");
-	textdomain (GETTEXT_PACKAGE);
-#endif
 
 	LIBXML_TEST_VERSION
 
