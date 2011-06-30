@@ -137,6 +137,49 @@ destroy (GtkWidget *widget, gpointer data)
 	gtk_main_quit ();
 }
 
+/* Backing pixmap for drawing area */
+static GdkPixmap *pixmap = NULL;
+
+/* Create a new backing pixmap of the appropriate size */
+static gint
+configure_event (GtkWidget *widget, GdkEventConfigure *event)
+{
+  if (pixmap)
+    gdk_pixmap_unref(pixmap);
+
+  pixmap = gdk_pixmap_new(widget->window,
+                          widget->allocation.width,
+                          widget->allocation.height,
+                          -1);
+  gdk_draw_rectangle (pixmap,
+                      widget->style->white_gc,
+                      TRUE,
+                      0, 0,
+                      widget->allocation.width,
+                      widget->allocation.height);
+
+  GdkGC *gc = gdk_gc_new(pixmap);
+  gdk_draw_line(pixmap, gc,
+                100, 100,
+                200, 200);
+
+  return TRUE;
+}
+
+/* Redraw the screen from the backing pixmap */
+static gint
+expose_event (GtkWidget *widget, GdkEventExpose *event)
+{
+  gdk_draw_pixmap(widget->window,
+                  widget->style->fg_gc[GTK_WIDGET_STATE (widget)],
+                  pixmap,
+                  event->area.x, event->area.y,
+                  event->area.x, event->area.y,
+                  event->area.width, event->area.height);
+
+  return FALSE;
+}
+
 void
 running_balance() {
 	double tx_balance = balance;
@@ -224,9 +267,13 @@ create_window (void)
 
   	g_object_unref (model);	
 	gtk_widget_show (view);
-	
-	GtkWidget *button2 = gtk_button_new_with_label ("Goodbye World");
-    gtk_widget_show (button2);
+
+	GtkWidget *draw = gtk_drawing_area_new();
+	g_signal_connect (draw, "configure-event",
+	          G_CALLBACK (configure_event), NULL);
+	g_signal_connect (draw, "expose-event",
+	          G_CALLBACK (expose_event), NULL);
+    gtk_widget_show (draw);
 
 	GtkWidget *scroll = gtk_scrolled_window_new(NULL, NULL);
     gtk_container_add (GTK_CONTAINER (scroll), view);	
@@ -235,7 +282,7 @@ create_window (void)
 
 	GtkWidget* notebook = gtk_notebook_new();
 	gtk_notebook_append_page (GTK_NOTEBOOK (notebook), scroll, gtk_label_new ("Ledger"));
-	gtk_notebook_append_page (GTK_NOTEBOOK (notebook), button2, gtk_label_new ("Graph"));
+	gtk_notebook_append_page (GTK_NOTEBOOK (notebook), draw, gtk_label_new ("Graph"));
     gtk_widget_show (notebook);
 
 	window = GTK_WINDOW( gtk_window_new (GTK_WINDOW_TOPLEVEL));
