@@ -228,8 +228,13 @@ create_window (void)
 	GtkWidget *button2 = gtk_button_new_with_label ("Goodbye World");
     gtk_widget_show (button2);
 
+	GtkWidget *scroll = gtk_scrolled_window_new(NULL, NULL);
+    gtk_container_add (GTK_CONTAINER (scroll), view);	
+	gtk_scrolled_window_set_policy(scroll, GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC); 
+    gtk_widget_show (scroll);
+
 	GtkWidget* notebook = gtk_notebook_new();
-	gtk_notebook_append_page (GTK_NOTEBOOK (notebook), view, gtk_label_new ("Ledger"));
+	gtk_notebook_append_page (GTK_NOTEBOOK (notebook), scroll, gtk_label_new ("Ledger"));
 	gtk_notebook_append_page (GTK_NOTEBOOK (notebook), button2, gtk_label_new ("Graph"));
     gtk_widget_show (notebook);
 
