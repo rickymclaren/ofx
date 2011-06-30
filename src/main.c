@@ -69,6 +69,11 @@ char* get_xml(void) {
 	}
 	g_dir_close (dir);
 
+	if (strlen(ofx_file) == 0) {
+		printf("%s", "Could not find an ofx file");
+		exit(1);
+	}
+
 	ofx_file = g_strjoin(G_DIR_SEPARATOR_S, DOWNLOADS, ofx_file, NULL);
 	printf("Using %s\n", ofx_file);
 	FILE *fp = fopen(ofx_file, "r");
@@ -228,7 +233,7 @@ create_window (void)
 	gtk_notebook_append_page (GTK_NOTEBOOK (notebook), button2, gtk_label_new ("Graph"));
     gtk_widget_show (notebook);
 
-	window = gtk_window_new (GTK_WINDOW_TOPLEVEL);
+	window = GTK_WINDOW( gtk_window_new (GTK_WINDOW_TOPLEVEL));
 	g_signal_connect (window, "delete-event",
 	          G_CALLBACK (destroy), NULL);
     gtk_container_set_border_width (GTK_CONTAINER (window), 10);
