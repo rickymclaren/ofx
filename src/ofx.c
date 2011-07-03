@@ -158,11 +158,14 @@ configure_event (GtkWidget *widget, GdkEventConfigure *event)
                       widget->allocation.width,
                       widget->allocation.height);
 
-  GdkGC *gc = gdk_gc_new(pixmap);
-  gdk_draw_line(pixmap, gc,
-                100, 100,
-                200, 200);
-
+  cairo_t *cr = gdk_cairo_create(pixmap);
+  cairo_set_source_rgb(cr, 0, 0, 0);
+  cairo_set_line_width (cr, 0.5);
+  cairo_move_to(cr, 100.5, 100.5);
+  cairo_line_to(cr, 200.5, 100.5);
+  cairo_stroke(cr);
+  cairo_destroy(cr);
+  
   return TRUE;
 }
 
