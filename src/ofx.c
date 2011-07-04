@@ -144,6 +144,22 @@ destroy (GtkWidget *widget, gpointer data)
 /* Backing pixmap for drawing area */
 static GdkPixmap *pixmap = NULL;
 
+static int BORDER_LEFT = 50;
+static int BORDER_TOP = 10;
+static int BORDER_BOTTOM = 10;
+static float scale_x, scale_y;
+static int origin_x, origin_y;
+
+static void draw_line(cairo_t *cr, float x1, float y1, float x2, float y2) {
+	x1 = origin_x + x1 * scale_x;
+	x2 = origin_x + x2 * scale_x;
+	y1 = origin_y + y1 * scale_y;
+	y2 = origin_y + y2 * scale_y;
+    cairo_move_to( cr, x1, y1);
+	cairo_line_to( cr, x2, y2);
+    cairo_stroke(cr);
+}
+
 /* Create a new backing pixmap of the appropriate size */
 static gint
 configure_event (GtkWidget *widget, GdkEventConfigure *event)
@@ -165,13 +181,29 @@ configure_event (GtkWidget *widget, GdkEventConfigure *event)
   cairo_t *cr = gdk_cairo_create(pixmap);
   cairo_set_source_rgb(cr, 0, 0, 0);
   cairo_set_line_width (cr, 1.0);
-  cairo_move_to(cr, 100.5, 100.5);
-  cairo_line_to(cr, 200.5, 100.5);
-  cairo_move_to(cr, 0.0, 200.0);
+
+  // Text 
+  cairo_move_to(cr, 0.0, BORDER_TOP);
   cairo_show_text(cr, g_strdup_printf("%.2f", max));
-  cairo_move_to(cr, 0.0, 300.0);
+  cairo_move_to(cr, 0.0, widget->allocation.height);
   cairo_show_text(cr, g_strdup_printf("%.2f", min));
-  cairo_stroke(cr);
+
+  // Graph
+  scale_x = (widget->allocation.width - BORDER_LEFT) / 366.0;
+  scale_y = (widget->allocation.height - BORDER_TOP - BORDER_BOTTOM) / (max - min);
+  origin_x = BORDER_LEFT;
+  origin_y = BORDER_TOP + max * scale_y;
+  scale_y *= -1;
+
+  // Axis
+  draw_line(cr, 0, min, 0, max);
+  draw_line(cr, 0, 0, 366, 0);
+
+  // Bars
+  draw_line(cr, 0, 0, 366, max);
+  draw_line(cr, 0, 0, 366, min);
+
+
   cairo_destroy(cr);
   
   return TRUE;
