@@ -34,11 +34,11 @@
 
 enum
 {
-  COL_DATE = 0,
-  COL_AMOUNT,
-  COL_BALANCE,
-  COL_MEMO,
-  NUM_COLS
+    COL_DATE = 0,
+    COL_AMOUNT,
+    COL_BALANCE,
+    COL_MEMO,
+    NUM_COLS
 } ;
 
 typedef struct tx_type {
@@ -52,6 +52,9 @@ typedef struct tx_type {
 static GSList *tx_list = NULL;			// Single Linked List of transactions
 static Tx_Type* tx;						// Current transaction
 static float balance = 0.0;				// Current balance
+static float min = FLT_MAX;
+static float max = FLT_MIN;
+
 
 char* get_xml(void) {
 
@@ -102,8 +105,11 @@ process_xml(xmlNode * a_node)
 
     for (cur_node = a_node; cur_node; cur_node = cur_node->next) {
         if (cur_node->type == XML_ELEMENT_NODE) {
-			if (strcmp((char *) cur_node->name, "DTPOSTED") == 0) {
+			if (strcmp((char *) cur_node->name, "STMTTRN") == 0) {
 				tx = calloc(1, sizeof(Tx_Type));
+				tx_list = g_slist_prepend(tx_list, tx);
+            }
+			if (strcmp((char *) cur_node->name, "DTPOSTED") == 0) {
 				tx->date = g_strdup((char *)xmlNodeGetContent (cur_node));
 			}
 			if (strcmp((char *) cur_node->name, "NAME") == 0) {
@@ -115,8 +121,6 @@ process_xml(xmlNode * a_node)
 			if (strcmp((char *) cur_node->name, "MEMO") == 0) {
 				tx->memo = g_strdup((char *)xmlNodeGetContent (cur_node));
 				tx->balance = "N/A";
-				tx_list = g_slist_prepend(tx_list, tx);
-				tx = calloc(1, sizeof(Tx_Type));
 			}
 
 			if (strcmp((char *) cur_node->name, "BALAMT") == 0) {
@@ -160,9 +164,13 @@ configure_event (GtkWidget *widget, GdkEventConfigure *event)
 
   cairo_t *cr = gdk_cairo_create(pixmap);
   cairo_set_source_rgb(cr, 0, 0, 0);
-  cairo_set_line_width (cr, 0.5);
+  cairo_set_line_width (cr, 1.0);
   cairo_move_to(cr, 100.5, 100.5);
   cairo_line_to(cr, 200.5, 100.5);
+  cairo_move_to(cr, 0.0, 200.0);
+  cairo_show_text(cr, g_strdup_printf("%.2f", max));
+  cairo_move_to(cr, 0.0, 300.0);
+  cairo_show_text(cr, g_strdup_printf("%.2f", min));
   cairo_stroke(cr);
   cairo_destroy(cr);
   
@@ -190,6 +198,8 @@ running_balance() {
 	while (item) {
 		tx = item->data;
 		tx->balance = g_strdup_printf("%.2f", tx_balance);	
+        min = tx_balance < min ? tx_balance : min;
+        max = tx_balance > max ? tx_balance : max;
 		item = g_slist_next(item);
 		tx_balance -= atof(tx->amount);
 	}
