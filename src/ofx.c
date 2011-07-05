@@ -49,6 +49,7 @@ typedef struct tx_type {
 	char *name;
 	char *memo;
 	char *balance;
+	float fBalance;
 } Tx_Type;
 
 static GSList *tx_list = NULL;			// Single Linked List of transactions
@@ -189,49 +190,54 @@ static void draw_line(cairo_t *cr, float x1, float y1, float x2, float y2) {
 static gint
 configure_event (GtkWidget *widget, GdkEventConfigure *event)
 {
-  if (pixmap)
-    gdk_pixmap_unref(pixmap);
+  	if (pixmap)
+    	gdk_pixmap_unref(pixmap);
 
-  pixmap = gdk_pixmap_new(widget->window,
+  	pixmap = gdk_pixmap_new(widget->window,
                           widget->allocation.width,
                           widget->allocation.height,
                           -1);
-  gdk_draw_rectangle (pixmap,
+  	gdk_draw_rectangle (pixmap,
                       widget->style->white_gc,
                       TRUE,
                       0, 0,
                       widget->allocation.width,
                       widget->allocation.height);
 
-  cairo_t *cr = gdk_cairo_create(pixmap);
-  cairo_set_source_rgb(cr, 0, 0, 0);
-  cairo_set_line_width (cr, 1.0);
+  	cairo_t *cr = gdk_cairo_create(pixmap);
+  	cairo_set_source_rgb(cr, 0, 0, 0);
+  	cairo_set_line_width (cr, 1.0);
 
-  // Text 
-  cairo_move_to(cr, 0.0, BORDER_TOP);
-  cairo_show_text(cr, g_strdup_printf("%.2f", max));
-  cairo_move_to(cr, 0.0, widget->allocation.height);
-  cairo_show_text(cr, g_strdup_printf("%.2f", min));
+  	// Text 
+  	cairo_move_to(cr, 0.0, BORDER_TOP);
+  	cairo_show_text(cr, g_strdup_printf("%.2f", max));
+  	cairo_move_to(cr, 0.0, widget->allocation.height);
+  	cairo_show_text(cr, g_strdup_printf("%.2f", min));
 
-  // Graph
-  scale_x = (widget->allocation.width - BORDER_LEFT) / (max_day - min_day);
-  scale_y = (widget->allocation.height - BORDER_TOP - BORDER_BOTTOM) / (max - min);
-  origin_x = BORDER_LEFT;
-  origin_y = BORDER_TOP + max * scale_y;
-  scale_y *= -1;
+  	// Graph
+  	scale_x = (widget->allocation.width - BORDER_LEFT) / (max_day - min_day);
+  	scale_y = (widget->allocation.height - BORDER_TOP - BORDER_BOTTOM) / (max - min);
+  	origin_x = BORDER_LEFT;
+  	origin_y = BORDER_TOP + max * scale_y;
+  	scale_y *= -1;
 
-  // Axis
-  draw_line(cr, 0, min, 0, max);
-  draw_line(cr, 0, 0, max_day - min_day, 0);
+  	// Axis
+  	draw_line(cr, 0, min, 0, max);
+  	draw_line(cr, 0, 0, max_day - min_day, 0);
 
-  // Bars
-  draw_line(cr, 0, 0, max_day - min_day, max);
-  draw_line(cr, 0, 0, max_day - min_day, min);
+  	// Bars
+	GSList* item = tx_list;
+	while (item) {
+		tx = item->data;
+		long day = tx->julian_day - min_day;
+		float amt = tx->fBalance;
+  		draw_line(cr, day, 0, day, amt);
+		item = g_slist_next(item);
+	}
 
-
-  cairo_destroy(cr);
+  	cairo_destroy(cr);
   
-  return TRUE;
+  	return TRUE;
 }
 
 /* Redraw the screen from the backing pixmap */
@@ -254,6 +260,7 @@ running_balance() {
 	GSList* item = tx_list;
 	while (item) {
 		tx = item->data;
+		tx->fBalance = tx_balance;
 		tx->balance = g_strdup_printf("%.2f", tx_balance);	
         min = tx_balance < min ? tx_balance : min;
         max = tx_balance > max ? tx_balance : max;
