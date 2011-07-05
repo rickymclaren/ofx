@@ -23,6 +23,7 @@
 
 #include <glib/gi18n.h>
 
+#include <assert.h>
 #include <stdio.h>
 #include <string.h>
 #include <libxml/xmlreader.h>
@@ -43,6 +44,7 @@ enum
 
 typedef struct tx_type {
 	char *date;
+	long julian_day;
 	char *amount;
 	char *name;
 	char *memo;
@@ -54,7 +56,29 @@ static Tx_Type* tx;						// Current transaction
 static float balance = 0.0;				// Current balance
 static float min = FLT_MAX;
 static float max = FLT_MIN;
+static long min_day = LONG_MAX;
+static long max_day = LONG_MIN;
 
+char *sub_string(char *src, int offset, int length, char *buffer) {
+	memcpy(buffer, &src[offset], length);
+	buffer[length] = 0;
+	return buffer;
+}
+
+long julian_day(char *date) {
+	assert(strlen(date) == 8);
+	char buffer[5];
+
+	int y = atoi(sub_string(date, 0, 4, buffer));
+	int m = atoi(sub_string(date, 4, 2, buffer));
+	int d = atoi(sub_string(date, 6, 2, buffer));
+
+	y+=8000;
+	if(m<3) { y--; m+=12; }
+	return (y*365) +(y/4) -(y/100) +(y/400) -1200820
+              +(m*153+3)/5-92
+              +d-1;
+}
 
 char* get_xml(void) {
 
@@ -111,6 +135,7 @@ process_xml(xmlNode * a_node)
             }
 			if (strcmp((char *) cur_node->name, "DTPOSTED") == 0) {
 				tx->date = g_strdup((char *)xmlNodeGetContent (cur_node));
+				tx->julian_day = julian_day(tx->date);
 			}
 			if (strcmp((char *) cur_node->name, "NAME") == 0) {
 				tx->name = g_strdup((char *)xmlNodeGetContent (cur_node));
@@ -189,7 +214,7 @@ configure_event (GtkWidget *widget, GdkEventConfigure *event)
   cairo_show_text(cr, g_strdup_printf("%.2f", min));
 
   // Graph
-  scale_x = (widget->allocation.width - BORDER_LEFT) / 366.0;
+  scale_x = (widget->allocation.width - BORDER_LEFT) / (max_day - min_day);
   scale_y = (widget->allocation.height - BORDER_TOP - BORDER_BOTTOM) / (max - min);
   origin_x = BORDER_LEFT;
   origin_y = BORDER_TOP + max * scale_y;
@@ -197,11 +222,11 @@ configure_event (GtkWidget *widget, GdkEventConfigure *event)
 
   // Axis
   draw_line(cr, 0, min, 0, max);
-  draw_line(cr, 0, 0, 366, 0);
+  draw_line(cr, 0, 0, max_day - min_day, 0);
 
   // Bars
-  draw_line(cr, 0, 0, 366, max);
-  draw_line(cr, 0, 0, 366, min);
+  draw_line(cr, 0, 0, max_day - min_day, max);
+  draw_line(cr, 0, 0, max_day - min_day, min);
 
 
   cairo_destroy(cr);
@@ -232,6 +257,8 @@ running_balance() {
 		tx->balance = g_strdup_printf("%.2f", tx_balance);	
         min = tx_balance < min ? tx_balance : min;
         max = tx_balance > max ? tx_balance : max;
+        min_day = tx->julian_day < min_day ? tx->julian_day : min_day;
+        max_day = tx->julian_day > max_day ? tx->julian_day : max_day;
 		item = g_slist_next(item);
 		tx_balance -= atof(tx->amount);
 	}
@@ -322,7 +349,7 @@ create_window (void)
 
 	GtkWidget *scroll = gtk_scrolled_window_new(NULL, NULL);
     gtk_container_add (GTK_CONTAINER (scroll), view);	
-	gtk_scrolled_window_set_policy(scroll, GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC); 
+	gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scroll), GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC); 
     gtk_widget_show (scroll);
 
 	GtkWidget* notebook = gtk_notebook_new();
@@ -344,7 +371,6 @@ int
 main (int argc, char *argv[])
 {
  	GtkWindow *window;
-
 
 	LIBXML_TEST_VERSION
 
@@ -369,6 +395,9 @@ main (int argc, char *argv[])
     xmlCleanupParser();
 
 	running_balance();
+	printf("Min balance = %f\n", min);
+	printf("Max balance = %f\n", max);
+	printf("Number of days = %ld\n", max_day - min_day + 1);
 	
 	gtk_init (&argc, &argv);
 
