@@ -225,6 +225,9 @@ configure_event (GtkWidget *widget, GdkEventConfigure *event)
   	draw_line(cr, 0, min, 0, max);
   	draw_line(cr, 0, 0, max_day - min_day, 0);
 
+  	cairo_set_source_rgb(cr, 0, 0, 0.5);
+  	cairo_set_line_width (cr, 2.0);
+
   	// Bars
 	GSList* item = tx_list;
 	while (item) {
