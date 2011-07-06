@@ -318,6 +318,7 @@ create_window (void)
                                                 "text", COL_DATE,
                                                 NULL);    
  	renderer = gtk_cell_renderer_text_new ();
+	g_object_set(renderer, "xalign", 1.0, NULL);
   	gtk_tree_view_insert_column_with_attributes (GTK_TREE_VIEW (view),
                                                -1,      
                                                "Amount",  
@@ -325,6 +326,7 @@ create_window (void)
                                                "text", COL_AMOUNT,
                                                NULL);	
  	renderer = gtk_cell_renderer_text_new ();
+	g_object_set(renderer, "xalign", 1.0, NULL);
   	gtk_tree_view_insert_column_with_attributes (GTK_TREE_VIEW (view),
                                                -1,      
                                                "Balance",  
