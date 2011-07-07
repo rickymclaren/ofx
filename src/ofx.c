@@ -1,28 +1,4 @@
-/* -*- Mode: C; indent-tabs-mode: t; c-basic-offset: 4; tab-width: 4 -*- */
-/*
- * main.c
- * Copyright (C) Richard 2011 <richard@ACER5920G>
- * 
- * gtk-money is free software: you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- * 
- * gtk-money is distributed in the hope that it will be useful, but
- * WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See the GNU General Public License for more details.
- * 
- * You should have received a copy of the GNU General Public License along
- * with this program.  If not, see <http://www.gnu.org/licenses/>.
- */
-
-//#include <config.h>
 #include <gtk/gtk.h>
-
-
-#include <glib/gi18n.h>
-
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
@@ -53,6 +29,7 @@ typedef struct tx_type {
 } Tx_Type;
 
 static GSList *tx_list = NULL;             // Single Linked List of transactions
+static GSList *graph_list = NULL;          // Single Linked List of transactions with missing days filled in
 static Tx_Type* tx;                        // Current transaction
 static float balance = 0.0;                // Current balance
 static float min = FLT_MAX;
@@ -60,25 +37,62 @@ static float max = FLT_MIN;
 static long min_day = LONG_MAX;
 static long max_day = LONG_MIN;
 
+char *months[] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
+
 char *sub_string(char *src, int offset, int length, char *buffer) {
     memcpy(buffer, &src[offset], length);
     buffer[length] = 0;
     return buffer;
 }
 
-long julian_day(char *date) {
-    assert(strlen(date) == 8);
-    char buffer[5];
+typedef struct date_t {
+    int year;
+    int month;
+    int day;
+} Date_Type;
 
-    int y = atoi(sub_string(date, 0, 4, buffer));
-    int m = atoi(sub_string(date, 4, 2, buffer));
-    int d = atoi(sub_string(date, 6, 2, buffer));
+Date_Type *str_to_date(char *str, Date_Type *date) {
+    char buffer[5];
+    date->year = atoi(sub_string(str, 0, 4, buffer));
+    date->month = atoi(sub_string(str, 4, 2, buffer));
+    date->day = atoi(sub_string(str, 6, 2, buffer));
+    return date;
+}
+
+long julian_day(char *str) {
+    assert(strlen(str) == 8);
+    Date_Type date;
+    str_to_date(str, &date);
+
+    int y = date.year;
+    int m = date.month;
+    int d = date.day;
 
     y+=8000;
     if(m<3) { y--; m+=12; }
     return (y*365) +(y/4) -(y/100) +(y/400) -1200820
               +(m*153+3)/5-92
               +d-1;
+}
+
+Date_Type *julian_to_date(long day, Date_Type *date) {
+    long Z = day+0.5;
+    long W = (Z - 1867216.25)/36524.25;
+    long X = W/4;
+    long A = Z+1+W-X;
+    long B = A+1524;
+    long C = (B-122.1)/365.25;
+    long D = 365.25 * C;
+    long E = (B-D)/30.6001;
+    long F = 30.6001 * E;
+    date->day = B-D-F;
+    date->month = E < 13 ? E-1 : E-13;
+    date->year = date->month <= 2 ? C-4715 : C-4716;
+    return date;
+}
+
+char *date_to_str(Date_Type *dt) {
+    return g_strdup_printf("%04d%02d%02d", dt->year, dt->month, dt->day);
 }
 
 char* get_xml(void) {
@@ -224,12 +238,18 @@ static gint configure_event (GtkWidget *widget, GdkEventConfigure *event)
     cairo_set_line_width (cr, 2.0);
 
     // Bars
-    GSList* item = tx_list;
+    GSList* item = graph_list;
+    Date_Type dt;
     while (item) {
         tx = item->data;
         long day = tx->julian_day - min_day;
         float amt = tx->fBalance;
+        str_to_date(tx->date, &dt);
         draw_line(cr, day, 0, day, amt);
+        if (dt.day == 20) {
+            cairo_move_to(cr, origin_x + day * scale_x, widget->allocation.height - 5);
+            cairo_show_text(cr, months[dt.month-1]);
+        }
         item = g_slist_next(item);
     }
 
@@ -265,6 +285,38 @@ void running_balance() {
         tx_balance -= atof(tx->amount);
     }
 
+}
+
+Tx_Type *find_tx_for_day(long day) {
+    GSList* item = tx_list;
+    while (item) {
+        tx = item->data;
+        if (tx->julian_day == day) {
+            return tx;
+        }
+        item = g_slist_next(item);
+    }
+    return NULL;
+}
+
+void create_graph_data() {
+    long day;
+    Tx_Type *previous_tx;
+    Date_Type dt;
+    for (day = min_day; day <= max_day; day++) {
+        tx = find_tx_for_day(day);
+        if (tx) {
+              graph_list = g_slist_prepend(graph_list, tx);
+            previous_tx = tx;
+
+        } else {
+            tx = calloc(1, sizeof(Tx_Type));
+            memcpy(tx, previous_tx, sizeof(Tx_Type));
+            tx->julian_day = day;
+            tx->date = date_to_str(julian_to_date(day, &dt));
+            graph_list = g_slist_prepend(graph_list, tx);
+        }
+    }
 }
 
 static GtkTreeModel *create_and_fill_model (void) {
@@ -393,6 +445,8 @@ int main (int argc, char *argv[]) {
     printf("Min balance = %f\n", min);
     printf("Max balance = %f\n", max);
     printf("Number of days = %ld\n", max_day - min_day + 1);
+
+    create_graph_data();
     
     gtk_init (&argc, &argv);
 
