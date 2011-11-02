@@ -1,3 +1,9 @@
+/* Ubuntu 10.04 requires the following packages:
+ * 
+ * libgtk2.0-dev
+ * libxml2-dev
+ *
+ */
 #include <gtk/gtk.h>
 #include <assert.h>
 #include <stdio.h>
